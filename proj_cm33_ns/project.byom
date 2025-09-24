@@ -1,0 +1,35 @@
+{
+  "version": "0.0",
+  "target": 3,
+  "noCleanup": false,
+  "modelPath": "pretrained_models\\small_mlp_mnist.h5",
+  "inputShape": "784",
+  "outputPath": "deepcraft",
+  "cPrefix": "IMAI_",
+  "outputModelName": "TEST_MODEL",
+  "quantizationEnabled": true,
+  "sparsityEnabled": false,
+  "quantizationData": {
+    "type": 1,
+    "path": "sample_data\\mnist_calib_data.csv",
+    "startColumn": 0,
+    "numColumn": 100000000,
+    "sampleCount": 1000
+  },
+  "float32Api": false,
+  "validationEnabled": true,
+  "validationData": {
+    "type": 1,
+    "path": "sample_data\\mnist_test_data.csv",
+    "startColumn": 0,
+    "numColumn": 100000000,
+    "sampleCount": 1000
+  },
+  "ethosUSystemConfig": 0,
+  "ethosUMemoryMode": 0,
+  "ethosUOptimize": 1,
+  "ethosUTensorAllocator": 2,
+  "ethosUArenaCacheSize": 2936012,
+  "ethosURecursionLimit": 1000,
+  "ethosUMaxBlockDependency": 3
+}

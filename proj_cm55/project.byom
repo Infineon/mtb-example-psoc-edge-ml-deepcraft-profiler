@@ -1,0 +1,35 @@
+{
+  "version": "0.0",
+  "target": 2,
+  "noCleanup": false,
+  "modelPath": "pretrained_models\\resnet.h5",
+  "inputShape": "32,32,3",
+  "outputPath": "deepcraft",
+  "cPrefix": "IMAI_",
+  "outputModelName": "TEST_MODEL",
+  "quantizationEnabled": true,
+  "sparsityEnabled": false,
+  "quantizationData": {
+    "type": 0,
+    "path": "sample_data\\resnet_calib_data.npz",
+    "startColumn": 0,
+    "numColumn": 100000000,
+    "sampleCount": 1000
+  },
+  "float32Api": false,
+  "validationEnabled": true,
+  "validationData": {
+    "type": 0,
+    "path": "sample_data\\resnet_test_data.npz",
+    "startColumn": 0,
+    "numColumn": 100000000,
+    "sampleCount": 1000
+  },
+  "ethosUSystemConfig": 0,
+  "ethosUMemoryMode": 1,
+  "ethosUOptimize": 1,
+  "ethosUTensorAllocator": 2,
+  "ethosUArenaCacheSize": 2936012,
+  "ethosURecursionLimit": 1000,
+  "ethosUMaxBlockDependency": 3
+}
