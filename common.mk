@@ -7,8 +7,8 @@
 #
 ################################################################################
 # \copyright
-# Copyright 2025, Cypress Semiconductor Corporation (an Infineon company)
-# SPDX-License-Identifier: Apache-2.0
+# (c) 2025-2026, Infineon Technologies AG, or an affiliate of Infineon
+# Technologies AG.  SPDX-License-Identifier: Apache-2.0
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -70,5 +70,11 @@ COMBINE_SIGN_JSON?=configs/boot_with_extended_boot.json
 # cm33
 # cm55
 ML_DEEPCRAFT_CPU=cm55
+
+# Choose the source of the regression data used to validate the model
+# local  -- use the regression data compiled into the firmware
+# stream -- stream the regression data over UART from the DEEPCRAFT Model
+#           Converter "Validate on Target" feature
+ML_VALIDATION_SOURCE=local
 
 include ../common_app.mk

@@ -1,7 +1,8 @@
 /******************************************************************************
-* File Name:   elapsed_timer.c
+* File Name:   ml_profiler.h
 *
-* Description: This file contains the implementation of a elapsed timer.
+* Description: This file contains the prototype of the shared DEEPCRAFT(TM) ML
+*              profiler task used by the core projects.
 *
 * Related Document: See README.md
 *
@@ -35,100 +36,29 @@
 * application where a failure of the Product or any consequences of the use
 * thereof can reasonably be expected to result in personal injury.
 *******************************************************************************/
-#include <stdio.h>
-
-#include "cybsp.h"
-#include "cy_pdl.h"
-
-#include "elapsed_timer.h"
+#ifndef ML_PROFILER_H
+#define ML_PROFILER_H
 
 /*******************************************************************************
-* Constants
+* Functions
 *******************************************************************************/
-#define SYSTICK_MAX_CNT (0xFFFFFF)
-#define RESET_VAL       (0u)
-
 /*******************************************************************************
-* Global Variables
-*******************************************************************************/
-/* System Tick overflow counter */
-static volatile uint64_t elapsed_timer_ov = RESET_VAL;
-
-/*******************************************************************************
-* Function Name: elapsed_timer_callback
+* Function Name: ml_profiler_run
 ********************************************************************************
 * Summary:
-* This is the callback implementation for the elapsed timer. It increments an
-* internal counter;
-*
-* Paramters:
-*   void
-*
-* Return:
-*   void
-*
-*******************************************************************************/
-static void elapsed_timer_callback(void)
-{
-    elapsed_timer_ov++;  
-}
-
-/*******************************************************************************
-* Function Name: elapsed_timer_init
-********************************************************************************
-* Summary:
-*   Initialize the elapsed system tick timer.
+*   Run the DEEPCRAFT(TM) ML profiler task. It prints the welcome banner,
+*   initializes the ML middleware, model, and timer, then executes the
+*   inference engine using local or streamed regression data. This function
+*   does not return.
 *
 * Parameters:
+*   core_name: label shown in the banner (e.g. "CM33+NNLite" or "CM55+U55")
+*
+* Return:
 *   void
-*
-* Return:
-*   cy_rslt_t: the status of the initialization.
-*
 *******************************************************************************/
-cy_rslt_t elapsed_timer_init(void)
-{
-    /* Initialize the System Tick */
-    Cy_SysTick_Init(CY_SYSTICK_CLOCK_SOURCE_CLK_CPU, SYSTICK_MAX_CNT);
-    Cy_SysTick_SetCallback(0, elapsed_timer_callback);
+void ml_profiler_run(const char *core_name);
 
-    elapsed_timer_ov = RESET_VAL;
-
-    return CY_RSLT_SUCCESS;
-}
-
-/*******************************************************************************
-* Function Name: elapsed_timer_get_tick
-********************************************************************************
-* Summary:
-*   Return the current tick (number of CPU cycles) since the timer was started.
-*
-* Parameters:
-*   tick: current number of ticks.
-*
-* Return:
-*   int: the status of the operation.
-*
-*******************************************************************************/
-int elapsed_timer_get_tick(uint64_t *tick)
-{
-    uint32_t int_status;
-    int_status = Cy_SysLib_EnterCriticalSection();
-
-    uint64_t systick_value = (uint64_t)Cy_SysTick_GetValue();
-    if (systick_value > (3*SYSTICK_MAX_CNT/4))
-    {
-        if (Cy_SysTick_GetCountFlag())
-        {
-            elapsed_timer_ov++;
-        }
-    }
-
-    *tick = (SYSTICK_MAX_CNT - systick_value) + (elapsed_timer_ov * (SYSTICK_MAX_CNT + 1));
-
-    Cy_SysLib_ExitCriticalSection(int_status);
-    return 0;
-
-}
+#endif /* ML_PROFILER_H */
 
 /* [] END OF FILE */

@@ -7,8 +7,8 @@
 #
 ################################################################################
 # \copyright
-# Copyright 2025, Cypress Semiconductor Corporation (an Infineon company)
-# SPDX-License-Identifier: Apache-2.0
+# (c) 2025-2026, Infineon Technologies AG, or an affiliate of Infineon
+# Technologies AG.  SPDX-License-Identifier: Apache-2.0
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -42,6 +42,7 @@ VERBOSE=
 #
 # float    -- floating point for the input data and weights
 # int8x8   -- 8-bit fixed-point for the input data and weights
+# int16x8  -- 16-bit fixed-point for the input data and 8-bit for weights
 NN_TYPE=int8x8
 
 # Model Name to be loaded to the firmware
@@ -50,8 +51,16 @@ NN_MODEL_NAME=TEST_MODEL
 # Folder name containing the model and regression data
 NN_MODEL_FOLDER=deepcraft
 
+# Choose the inference engine
+# tflm      -- TensorFlow Lite for Microcontrollers inference engine with interpreter
+# tflm_less -- TensorFlow Lite for Microcontrollers inference engine interpreter-less
+NN_INFERENCE_ENGINE=tflm
+
 # Choose to enable NNLITE NPU - yes or no
 NN_NPU_ENABLE=yes
+
+# Is a RNN model? yes or no
+NN_RNN_MODEL=no
 
 ################################################################################
 # Advanced Configuration
@@ -82,7 +91,7 @@ CORE_NAME=CM33_0
 SOURCES+=
 
 # Select only the regression and model files that belong to the desired
-# settings. 
+# settings.
 MODEL_PREFIX=$(subst $\",,$(NN_MODEL_NAME))
 CY_IGNORE+=$(NN_MODEL_FOLDER)
 
@@ -96,47 +105,60 @@ else
 COMPONENTS+=NNLITE2
 endif
 
+# Add additional components related to MTB ML
+COMPONENTS+=ML_MW_STREAM
+
 # Like SOURCES, but for include directories. Value should be paths to
 # directories (without a leading -I).
-INCLUDES+=$(NN_MODEL_FOLDER) $(NN_MODEL_FOLDER)/eval_data
+INCLUDES+=$(NN_MODEL_FOLDER)/mtb_ml_regression_data $(NN_MODEL_FOLDER)/mtb_ml_models
+
+# Add additional define/components to select the inference engine
+ifeq (tflm, $(NN_INFERENCE_ENGINE))
+COMPONENTS+=ML_TFLM
+DEFINES+=TF_LITE_STATIC_MEMORY
+endif
+
+ifeq (tflm_less, $(NN_INFERENCE_ENGINE))
+COMPONENTS+=ML_TFLM_LESS
+DEFINES+=TF_LITE_STATIC_MEMORY TF_LITE_MICRO_USE_OFFLINE_OP_USER_DATA TF_LITE_STRIP_ERROR_STRINGS
+endif
+
+# Add additional define for RNN model
+ifeq (yes, $(NN_RNN_MODEL))
+DEFINES+=RNN_STREAMING
+endif
 
 # Add define to build code for CM33 and include additional files
 ifeq (cm33, $(ML_DEEPCRAFT_CPU))
-DEFINES+=ML_DEEPCRAFT_CM33
+DEFINES+=ML_DEEPCRAFT_CM33 MODEL_NAME=$(NN_MODEL_NAME) CY_ML_MODEL_MEM=.cy_sram_code
+include ../ml_profiler.mk
 
 # Add the model file based on the inference and data types
-SOURCES+=$(wildcard $(NN_MODEL_FOLDER)/$(MODEL_PREFIX)_$(NN_TYPE).c*)
+SOURCES+=$(wildcard $(NN_MODEL_FOLDER)/mtb_ml_models/$(MODEL_PREFIX)_$(NN_INFERENCE_ENGINE)_model_$(NN_TYPE).c*)
 
+ifeq (local, $(ML_VALIDATION_SOURCE))
 # Add the regression files
-SOURCES+=$(wildcard $(NN_MODEL_FOLDER)/eval_data/$(MODEL_PREFIX)_$(NN_TYPE)_data_input.c*)
-SOURCES+=$(wildcard $(NN_MODEL_FOLDER)/eval_data/$(MODEL_PREFIX)_$(NN_TYPE)_data_output.c*)
-
-# Include the shared source file
-SEARCH+=../shared_src/
+SOURCES+=$(wildcard $(NN_MODEL_FOLDER)/mtb_ml_regression_data/$(MODEL_PREFIX)_tflm_*_data_$(NN_TYPE).c)
+endif
 endif
 
-# Add additional define/components to select the inference engine
-COMPONENTS+=ML_TFLM
-DEFINES+=TF_LITE_STATIC_MEMORY
-
-# Enable model profiling and store the tensor and weights in socmem
-ifeq (cm33, $(ML_DEEPCRAFT_CPU))
-DEFINES+=IMAI_PROFILING
-DEFINES+=CY_ML_MODEL_MEM=.cy_sram_code
-endif
-
-# Depending which Neural Network Type, add a specific DEFINE and COMPONENT
+# Add the data type component matching NN_TYPE
 ifeq (float, $(NN_TYPE))
-COMPONENTS+=ML_FLOAT32
-DEFINES+=ML_DEEPCRAFT_FLOAT
+  COMPONENTS+=ML_FLOAT32
 endif
 ifeq (int8x8, $(NN_TYPE))
-COMPONENTS+=ML_INT8x8
-DEFINES+=ML_DEEPCRAFT_INT8
+  COMPONENTS+=ML_INT8x8
+endif
+ifeq (int16x8, $(NN_TYPE))
+  COMPONENTS+=ML_INT16x8
 endif
 
 # Select softfp or hardfp floating point. Default is softfp.
 VFP_SELECT+=hardfp
+
+ifeq ($(VFP_SELECT),softfp)
+$(error softfp floating point is not supported for this code example)
+endif
 
 # Additional / custom C compiler flags.
 #
@@ -198,6 +220,6 @@ CY_GETLIBS_SHARED_NAME=mtb_shared
 #
 # The default depends on the selected TOOLCHAIN (GCC_ARM uses the ModusToolbox
 # IDE provided compiler by default).
-CY_COMPILER_PATH?=
+# CY_COMPILER_PATH?=
 
 include $(CY_TOOLS_DIR)/make/start.mk

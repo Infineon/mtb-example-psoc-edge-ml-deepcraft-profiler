@@ -7,8 +7,8 @@
 #
 ################################################################################
 # \copyright
-# Copyright 2025, Cypress Semiconductor Corporation (an Infineon company)
-# SPDX-License-Identifier: Apache-2.0
+# (c) 2025-2026, Infineon Technologies AG, or an affiliate of Infineon
+# Technologies AG.  SPDX-License-Identifier: Apache-2.0
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -43,6 +43,7 @@ VERBOSE=
 #
 # float    -- floating point for the input data and weights
 # int8x8   -- 8-bit fixed-point for the input data and weights
+# int16x8  -- 16-bit fixed-point for the input data and 8-bit for weights
 NN_TYPE=int8x8
 
 # Model Name to be loaded to the firmware
@@ -50,6 +51,20 @@ NN_MODEL_NAME=TEST_MODEL
 
 # Folder name containing the model and regression data
 NN_MODEL_FOLDER=deepcraft
+
+# Choose the inference engine
+# tflm      -- TensorFlow Lite for Microcontrollers inference engine with interpreter
+# NOTE: tflm_less is NOT supported on CM55 + Ethos-U55.
+NN_INFERENCE_ENGINE=tflm
+
+# Is a RNN model? yes or no
+NN_RNN_MODEL=no
+
+# Choose which cache management strategy for the Ethos-U55
+# MTB_ML_ETHOSU_CACHE_MGMT_ALL_LAYERS   -- (default) clear/invalidate cache in all layers
+# MTB_ML_ETHOSU_CACHE_MGMT_OUTER_LAYERS -- clear/invalidate cache in the input/output layers only
+# MTB_ML_ETHOSU_CACHE_MGMT_CONDITIONAL  -- clear/invalidate cache based on internal state
+DEFINES+=MTB_ML_ETHOSU_CACHE_MGMT_TYPE=MTB_ML_ETHOSU_CACHE_MGMT_ALL_LAYERS
 
 ################################################################################
 # Advanced Configuration
@@ -83,56 +98,69 @@ SOURCES+=
 MODEL_PREFIX=$(subst $\",,$(NN_MODEL_NAME))
 CY_IGNORE+=$(NN_MODEL_FOLDER)
 
+# The tflm_less inference engine cannot be used on CM55 + Ethos-U55.
+ifeq (tflm_less, $(NN_INFERENCE_ENGINE))
+$(error The tflm_less inference engine is not supported on CM55 + Ethos-U55. Use tflm instead.)
+endif
+
 # Add additional defines to the build process (without a leading -D).
-DEFINES+=CY_RETARGET_IO_CONVERT_LF_TO_CRLF 
+DEFINES+=CY_RETARGET_IO_CONVERT_LF_TO_CRLF
 
 # Add additional defines related to ARM Helium and DSP extensions
 DEFINES+=ARM_MATH_HELIUM ARM_MATH_DSP ARM_MATH_AUTOVECTORIZE
 
 # Add additional components related to MTB ML
 COMPONENTS+=U55
+COMPONENTS+=ML_MW_STREAM
 
 # Like SOURCES, but for include directories. Value should be paths to
 # directories (without a leading -I).
-INCLUDES+=$(NN_MODEL_FOLDER) $(NN_MODEL_FOLDER)/eval_data
-
-# Add define to build code for CM55 and include additional files
-ifeq (cm55, $(ML_DEEPCRAFT_CPU))
-DEFINES+=ML_DEEPCRAFT_CM55
-# Add the model file based on the inference and data types
-SOURCES+=$(wildcard $(NN_MODEL_FOLDER)/$(MODEL_PREFIX)_$(NN_TYPE).c*)
-
-# Add the regression files
-SOURCES+=$(wildcard $(NN_MODEL_FOLDER)/eval_data/$(MODEL_PREFIX)_$(NN_TYPE)_data_input.c*)
-SOURCES+=$(wildcard $(NN_MODEL_FOLDER)/eval_data/$(MODEL_PREFIX)_$(NN_TYPE)_data_output.c*)
-
-# Include the shared source file
-SEARCH+=../shared_src/
-endif
+INCLUDES+=$(NN_MODEL_FOLDER)/mtb_ml_regression_data $(NN_MODEL_FOLDER)/mtb_ml_models
 
 # Add additional define/components to select the inference engine
 COMPONENTS+=ML_TFLM
 DEFINES+=TF_LITE_STATIC_MEMORY
 
-# Enable model profiling and store the tensor and weights in socmem
-ifeq (cm55, $(ML_DEEPCRAFT_CPU))
-DEFINES+=IMAI_PROFILING
-DEFINES+=CY_ML_MODEL_MEM=.cy_socmem_data
-DEFINES+=CY_ML_ARENA_MEM=.cy_socmem_data
+# Add additional define for RNN model
+ifeq (yes, $(NN_RNN_MODEL))
+DEFINES+=RNN_STREAMING
 endif
 
-# Depending which Neural Network Type, add a specific DEFINE and COMPONENT
+# Add define to build code for CM55 and include additional files
+ifeq (cm55, $(ML_DEEPCRAFT_CPU))
+DEFINES+=ML_DEEPCRAFT_CM55 MODEL_NAME=$(NN_MODEL_NAME)
+
+# Store the model weights in socmem for best performance
+DEFINES+=CY_ML_MODEL_MEM=.cy_socmem_data
+
+include ../ml_profiler.mk
+
+# Add the model file based on the inference and data types
+SOURCES+=$(wildcard $(NN_MODEL_FOLDER)/mtb_ml_models/$(MODEL_PREFIX)_$(NN_INFERENCE_ENGINE)_model_$(NN_TYPE).c*)
+
+ifeq (local, $(ML_VALIDATION_SOURCE))
+# Add the regression files
+SOURCES+=$(wildcard $(NN_MODEL_FOLDER)/mtb_ml_regression_data/$(MODEL_PREFIX)_tflm_*_data_$(NN_TYPE).c)
+endif
+endif
+
+# Add the data type component matching NN_TYPE
 ifeq (float, $(NN_TYPE))
-COMPONENTS+=ML_FLOAT32
-DEFINES+=ML_DEEPCRAFT_FLOAT
+  COMPONENTS+=ML_FLOAT32
 endif
 ifeq (int8x8, $(NN_TYPE))
-COMPONENTS+=ML_INT8x8
-DEFINES+=ML_DEEPCRAFT_INT8
+  COMPONENTS+=ML_INT8x8
+endif
+ifeq (int16x8, $(NN_TYPE))
+  COMPONENTS+=ML_INT16x8
 endif
 
 # Select softfp or hardfp floating point. Default is softfp.
 VFP_SELECT+=hardfp
+
+ifeq ($(VFP_SELECT),softfp)
+$(error softfp floating point is not supported for this code example)
+endif
 
 # Additional / custom C compiler flags.
 #
@@ -194,6 +222,6 @@ CY_GETLIBS_SHARED_NAME=mtb_shared
 #
 # The default depends on the selected TOOLCHAIN (GCC_ARM uses the ModusToolbox
 # software provided compiler by default).
-CY_COMPILER_PATH?=
+# CY_COMPILER_PATH?=
 
 include $(CY_TOOLS_DIR)/make/start.mk
